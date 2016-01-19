@@ -24,6 +24,7 @@ import random
 import base64
 from config import Config
 from storage import Storage
+from singleton import Singleton
 
 # 歌曲榜单地址
 top_list_all = {
@@ -170,8 +171,11 @@ def geturl(song):
     return url, quality
 
 
-class NetEase:
+class NetEase(Singleton):
     def __init__(self):
+        if hasattr(self, '_init'):
+            return
+        self._init = True
         self.header = {
             'Accept': '*/*',
             'Accept-Encoding': 'gzip,deflate,sdch',
@@ -267,14 +271,41 @@ class NetEase:
 
     # 用户歌单
     def user_playlist(self, uid, offset=0, limit=100):
-        action = 'http://music.163.com/api/user/playlist/?offset=' + str(offset) + '&limit=' + str(
-                limit) + '&uid=' + str(uid)
-        try:
-            data = self.httpRequest('GET', action)
-            return data['playlist']
-        except:
-            return -1
+        if Config().get_item("api_version") == 2:
+            return self.user_playlist_encrypt(uid, offset=0, limit=100)
+        else:
+            action = 'http://music.163.com/api/user/playlist/?offset=' + str(offset) + '&limit=' + str(
+                    limit) + '&uid=' + str(uid)
+            try:
+                data = self.httpRequest('GET', action)
+                return data['playlist']
+            except:
+                return []
 
+    def user_playlist_encrypt(self, uid, offset=0, limit=1001):
+        try:
+            action = 'http://music.163.com/weapi/user/playlist?csrf_token='
+            self.session.cookies.load()
+            csrf = ""
+            for cookie in self.session.cookies:
+                if cookie.name == "__csrf":
+                    csrf = cookie.value
+            if csrf == "":
+                log.debug("NO COOKIE！")
+                return []
+            action += csrf
+            req = {
+                "offset": 0,
+                "uid": uid,
+                "limit": limit,
+                "csrf_token": csrf
+            }
+            page = self.session.post(action, data=encrypted_request(req), headers=self.header,
+                                     timeout=default_timeout)
+            results = json.loads(page.text)["playlist"]
+            return results
+        except:
+            return []
 
     # 每日推荐歌单
     def recommend_playlist(self):
@@ -391,10 +422,39 @@ class NetEase:
 
     # 歌单详情
     def playlist_detail(self, playlist_id):
-        action = 'http://music.163.com/api/playlist/detail?id=' + str(playlist_id)
+        if Config().get_item("api_version") == 2:
+            return self.playlist_detail_encrypt(playlist_id)
+        else:
+            action = 'http://music.163.com/api/playlist/detail?id=' + str(playlist_id)
+            try:
+                data = self.httpRequest('GET', action)
+                return data['result']['tracks']
+            except:
+                return []
+
+    def playlist_detail_encrypt(self, playlist_id):
         try:
-            data = self.httpRequest('GET', action)
-            return data['result']['tracks']
+            action = 'http://music.163.com/weapi/v3/playlist/detail?csrf_token='
+            self.session.cookies.load()
+            csrf = ""
+            for cookie in self.session.cookies:
+                if cookie.name == "__csrf":
+                    csrf = cookie.value
+            if csrf == "":
+                return False
+            action += csrf
+            req = {
+                "id": playlist_id,
+                "offset": 0,
+                "total": True,
+                "limit": 1000,
+                "n": 1000,
+                "csrf_token": csrf
+            }
+            page = self.session.post(action, data=encrypted_request(req), headers=self.header,
+                                     timeout=default_timeout)
+            results = json.loads(page.text)["playlist"]
+            return results['tracks']
         except:
             return []
 
@@ -518,6 +578,8 @@ class NetEase:
     def dig_info(self, data, dig_type):
         temp = []
         if dig_type == 'songs' or dig_type == 'fmsongs':
+            if Config().get_item("api_version") == 2:
+                return self.dig_songs_encrypt(data)
             for i in range(0, len(data)):
                 url, quality = geturl(data[i])
 
@@ -602,3 +664,85 @@ class NetEase:
             temp = self.playlist_class_dict[data]
 
         return temp
+
+    def dig_songs_encrypt(self, data):
+        temp = []
+        for i in range(0, len(data)):
+            album_name = '未知专辑'
+            if 'al' in data[i] and data[i]['al']:
+                album_name = data[i]['al']['name']
+            if not album_name:
+                album_name = '未知专辑'
+            song_info = {
+                'version': 2,
+                'song_id': data[i]['id'],
+                'artist': [],
+                'song_name': data[i]['name'],
+                'album_name': album_name,
+                'mp3_url': None,
+                'url_expired_time': time.time(),
+                'h': data[i]['h'],
+                'l': data[i]['l'],
+                'm': data[i]['m'],
+                'quality': "Unknown"
+            }
+            if 'ar' in data[i]:
+                for j in range(0, len(data[i]['ar'])):
+                    if data[i]['ar'][j]['name']:
+                        song_info['artist'].append(data[i]['ar'][j]['name'])
+                if len(song_info['artist']) > 0:
+                    song_info['artist'] = ', '.join(song_info['artist'])
+                else:
+                    song_info['artist'] = '未知艺术家'
+            else:
+                song_info['artist'] = '未知艺术家'
+            temp.append(song_info)
+        return temp
+
+    def get_url_encrypt(self, song):
+        quality = Config().get_item("music_quality")
+        if song['version'] != 2:
+            return None
+        if song['h'] and quality <= 0:
+            music = song['h']
+            quality = 'HD'
+        elif song['m'] and quality <= 1:
+            music = song['m']
+            quality = 'MD'
+        elif song['l'] and quality <= 2:
+            music = song['l']
+            quality = 'LD'
+        else:
+            music = {
+                'br': 320000
+            }
+            quality = 'Unknown'
+        print("hahah")
+        try:
+            action = 'http://music.163.com/weapi/song/enhance/player/url?csrf_token='
+            self.session.cookies.load()
+            csrf = ""
+            for cookie in self.session.cookies:
+                if cookie.name == "__csrf":
+                    csrf = cookie.value
+            if csrf == "":
+                return False
+            action += csrf
+            print("hahah")
+            req = {
+                "ids": [song['song_id']],
+                "br": music['br'],
+                "csrf_token": csrf
+            }
+            print("hahah")
+            page = self.session.post(action, data=encrypted_request(req), headers=self.header,
+                                     timeout=default_timeout)
+            result = json.loads(page.text)["data"][0]
+            print page.text
+            print("hahah")
+            song["mp3_url"] = result["url"]
+            song["url_expired_time"] = time.time() + result['expi']
+            song["quality"] = quality
+        except:
+            log.debug(song)
+            exit(0)

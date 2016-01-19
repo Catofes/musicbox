@@ -118,6 +118,8 @@ class Player:
         if 'cache' in popenArgs.keys() and os.path.isfile(popenArgs['cache']):
             thread = threading.Thread(target=runInThread, args=(onExit, popenArgs['cache']))
         else:
+            if self.config.get_item("api_version") == 2 and popenArgs['version'] == 2:
+                NetEase().get_url_encrypt(popenArgs)
             thread = threading.Thread(target=runInThread, args=(onExit, popenArgs['mp3_url']))
             cache_thread = threading.Thread(target=cacheSong, args=(
                 popenArgs['song_id'], popenArgs['song_name'], popenArgs['artist'], popenArgs['mp3_url']))
@@ -179,8 +181,8 @@ class Player:
             else:
                 database_song = self.songs[str(song["song_id"])]
                 if database_song["song_name"] != song["song_name"] or \
-                  database_song["quality"] != song["quality"] or \
-                  database_song["mp3_url"] != song["mp3_url"]:
+                                database_song["quality"] != song["quality"] or \
+                                database_song["mp3_url"] != song["mp3_url"]:
                     if "cache" in self.songs[str(song["song_id"])].keys():
                         song["cache"] = self.songs[str(song["song_id"])]["cache"]
                     self.songs[str(song["song_id"])] = song
@@ -389,7 +391,6 @@ class Player:
         except:
             pass
 
-
     def cacheSong1time(self, song_id, song_name, artist, song_url):
         def cacheExit(song_id, path):
             self.songs[str(song_id)]['cache'] = path
@@ -398,5 +399,3 @@ class Player:
         self.cache.enable = True
         self.cache.add(song_id, song_name, artist, song_url, cacheExit)
         self.cache.start_download()
-
-

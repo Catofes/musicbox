@@ -208,8 +208,13 @@ class Ui:
                         self.screen.addstr(i - offset + 8, 0, ' ' * self.startcol)
                         lead = '-> ' + str(i) + '. '
                         self.screen.addstr(i - offset + 8, self.indented_startcol, lead, curses.color_pair(2))
-                        name = str(datalist[i]['song_name'] + self.space + datalist[i][
+                        try:
+                            name = str(datalist[i]['song_name'] + self.space + datalist[i][
                             'artist'] + '  < ' + datalist[i]['album_name'] + ' >')
+                        except:
+                            print datalist[i]
+                            log.debug(datalist[i])
+                            exit(0)
 
                         # the length decides whether to scoll
                         if truelen(name) < self.x - self.startcol - 1:
@@ -223,9 +228,14 @@ class Ui:
                                                curses.color_pair(2))
                     else:
                         self.screen.addstr(i - offset + 8, 0, ' ' * self.startcol)
-                        self.screen.addstr(i - offset + 8, self.startcol,
+                        try:
+                            self.screen.addstr(i - offset + 8, self.startcol,
                                            str(str(i) + '. ' + datalist[i]['song_name'] + self.space + datalist[i][
                                                'artist'] + '  < ' + datalist[i]['album_name'] + ' >')[:int(self.x * 2)])
+                        except:
+                            print datalist[i]
+                            log.debug(datalist[i])
+                            exit(0)
                     self.screen.addstr(iter_range - offset + 9, 0, ' ' * self.x)
 
             elif datatype == 'artists':
@@ -410,6 +420,7 @@ class Ui:
             else:
                 return -1
         else:
+            self.netease.session.cookies.save()
             return [login_info, account]
 
     def build_login_bar(self):

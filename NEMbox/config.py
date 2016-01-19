@@ -6,7 +6,6 @@ import logger
 from singleton import Singleton
 from const import Constant
 
-
 log = logger.getLogger(__name__)
 
 
@@ -18,7 +17,7 @@ class Config(Singleton):
         self.const = Constant()
         self.config_file_path = self.const.conf_dir + "/config.json"
         self.default_config = {
-            "version": 3,
+            "version": 4,
             "cache": {
                 "value": False,
                 "default": False,
@@ -62,6 +61,11 @@ class Config(Singleton):
                 "value": True,
                 "default": True,
                 "describe": "Notifier when switching songs."
+            },
+            "api_version": {
+                "value": 1,
+                "default": 1,
+                "describe": "API version of 163. DO NOT change this if you don't know the means."
             }
 
         }
@@ -81,7 +85,6 @@ class Config(Singleton):
         f.close()
         if not self.check_version():
             self.save_config_file()
-
 
     def generate_config_file(self):
         f = file(self.config_file_path, "w")
@@ -126,6 +129,13 @@ class Config(Singleton):
                     "default": True,
                     "describe": "Notifier when switching songs."
                 }
+            elif self.config["version"] == 3:
+                self.config["version"] = 4
+                self.config["api_version"] = {
+                    "value": 1,
+                    "default": 1,
+                    "describe": "API version of 163. DO NOT change this if you don't know the means."
+                }
             self.check_version()
             return False
 
@@ -135,4 +145,3 @@ class Config(Singleton):
                 return None
             return self.default_config[name]['value']
         return self.config[name]['value']
-
